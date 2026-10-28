@@ -1,0 +1,5 @@
+# MNIST dataset files (auto-downloaded)
+data/
+# Python
+__pycache__/
+*.pyc

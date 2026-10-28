@@ -1,0 +1,60 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run project 1: flow-matching-toy",
+            "type": "shell",
+            "command": "python",
+            "args": ["train.py"],
+            "options": {
+                "cwd": "${workspaceFolder}/flow-matching-toy"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": false,
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Train the flow matching model on the circle toy task"
+        },
+        {
+            "label": "Run project 2: llm-hallucination-judge",
+            "type": "shell",
+            "command": "python",
+            "args": ["eval.py"],
+            "options": {
+                "cwd": "${workspaceFolder}/llm-hallucination-judge"
+            },
+            "presentation": {
+                "echo": false,
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Evaluate the built-in hallucination demo dataset"
+        },
+        {
+            "label": "Run project 3: pytorch-vae-mnist",
+            "type": "shell",
+            "command": "python",
+            "args": ["vae.py", "--epochs", "2"],
+            "options": {
+                "cwd": "${workspaceFolder}/pytorch-vae-mnist"
+            },
+            "presentation": {
+                "echo": false,
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Train the VAE for 2 epochs and save the plots"
+        }
+    ]
+}

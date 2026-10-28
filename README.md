@@ -28,3 +28,13 @@ cd pytorch-vae-mnist && python vae.py
 ## Topics covered
 
 Flow matching / conditional flow matching • ODE-based generative sampling • hallucination evaluation & faithfulness judging • claim extraction • VAEs • reparameterization trick • ELBO / KL divergence • latent spaces
+
+## Tested & verified ✔
+
+All three programs were run end-to-end (no API calls for project 2, CPU-only for 1 and 3) — once in an integrated PowerShell terminal and once inside VS Code using the pre-configured tasks in [`.vscode/tasks.json`](./.vscode/tasks.json). Six runs, six `exit code 0`. Full gallery with per-run descriptions: **[screenshots/](./screenshots/README.md)**
+
+| Project | VS Code terminal run | Result |
+|---|---|---|
+| flow-matching-toy | ![flow matching training in VS Code](./screenshots/project1_flow_matching_vscode.png) | 4000 steps, `final loss: 1.02470` |
+| llm-hallucination-judge | ![hallucination judge in VS Code](./screenshots/project2_hallucination_judge_vscode.png) | 3/5 hallucinations flagged, 0 API calls |
+| pytorch-vae-mnist | ![VAE training in VS Code](./screenshots/project3_vae_vscode.png) | ELBO improved `-165.51 → -157.44`, plots saved |

@@ -1,24 +1,5 @@
-# llm-hallucination-judge
-# Lightweight LLM evaluation framework — hallucination detection WITHOUT API calls.
-#
-# How it works (pure Python, stdlib only — no torch, no API keys):
-#   1. Extract claims: the answer is split into independent sentence-level claims.
-#   2. Score each claim against the provided context using lexical/semantic proxies:
-#        - IDF-weighted token overlap (rare words matter more than "the", "is" ...)
-#        - numeric consistency (numbers/dates in the claim must appear in context)
-#        - entity consistency (capitalized names in the claim must appear in context)
-#        - negation mismatch detection ("not" flipping the meaning of the context)
-#   3. Map the score to a verdict:  supported / uncertain / hallucinated.
-#   4. Aggregate into document-level metrics (hallucination rate, confidence).
-#
-# Optional upgrade: if `transformers` is installed it auto-uses a cross-encoder NLI
-# model (local, still 0 API calls) for entailment instead of pure lexical scoring.
-#
-# Usage:
-#   python eval.py                     # runs the built-in demo dataset
-#   python eval.py --data data.jsonl   # each line: {"context": ..., "answer": ...}
-#   python eval.py --data data.jsonl --report report.md
-
+# hallucination judge - checks if an answer is actually backed by the given
+# context. no api calls, pure stdlib. transformers optional (local nli model).
 import argparse
 import json
 import os
@@ -27,9 +8,7 @@ import string
 import sys
 from collections import Counter
 
-# ----------------------------------------------------------------------------- #
-# Config: IDF-weighted lexical entailment + number/entity/negation checks
-# ------------------------------------------------------------------------------ #
+# stopwords + verdict thresholds
 STOPWORDS = {
     "a", "an", "the", "is", "are", "was", "were", "be", "been", "being", "of",
     "in", "on", "at", "to", "for", "and", "or", "it", "its", "this", "that",
@@ -48,7 +27,7 @@ _TOKEN = re.compile(r"[A-Za-z][A-Za-z']*\d?|[A-Za-z]+|\d+(?:[.,]\d+)?%?")
 _NUMBER = re.compile(r"\b\d[\d.,%]*\b")
 Entity = re.compile(r"\b[A-Z][a-zA-Z0-9-]{1,}\b", re.UNICODE)
 
-try:  # optional local cross-encoder NLI (no API!)
+try:  # use a local nli model if transformers works, else plain lexical scoring
     from transformers import pipeline as _hf_pipeline
     _nli = _hf_pipeline("text-classification",
                         model="cross-encoder/nli-deberta-v3-xsmall",
@@ -62,7 +41,6 @@ except Exception:
           file=sys.stderr)
 
 
-# ---------------------------------------------------------------- tokenizing #
 def _tokens(text):
     toks = _TOKEN.findall(text.lower())
     return [t.strip(string.punctuation) for t in toks if t.strip(string.punctuation)]
@@ -77,23 +55,22 @@ def _split_claims(text):
     return claims or [text.strip()]
 
 
-# ------------------------------------------------------------ scoring engine #
 def _idf_scores(context):
-    """Content tokens that appear once in the context get more weight."""
+    """rare words get a higher weight"""
     counts = Counter(_content_tokens(context))
     max_c = max(counts.values()) if counts else 1
     return {tok: 1.0 / (1 + (c - 1) / max_c) for tok, c in counts.items()}
 
 
 def claim_score(claim, context, idf):
-    """Return (score in [0,1], reasons list)."""
+    """returns (score between 0 and 1, list of matching reasons)"""
     reasons, score = [], 0.0
     ctoks = set(_content_tokens(context))
     claim_toks = _content_tokens(claim)
     if not claim_toks:
         return 0.0, ["empty claim"]
 
-    # 1. IDF-weighted lexical overlap
+    # overlap on content words, rarer ones count for more
     matched, total = 0.0, 0.0
     for tok in claim_toks:
         w = idf.get(tok, 1.0)
@@ -105,7 +82,7 @@ def claim_score(claim, context, idf):
     overlap = matched / total if total else 0.0
     score += 55 * overlap
 
-    # 2. numbers must exist in context
+    # numbers in the claim should show up in the context too
     claim_nums, ctx_nums = _NUMBER.findall(claim), set(_NUMBER.findall(context))
     for n in claim_nums:
         n_clean = n.rstrip(".%,")
@@ -116,7 +93,7 @@ def claim_score(claim, context, idf):
             score -= 18
             reasons.append(f"number NOT in context: {n}")
 
-    # 3. named entities must exist in context
+    # same for named entities
     ctx_ents = {e.lower() for e in Entity.findall(context)}
     for e in Entity.findall(claim):
         if e.lower() in ctx_ents:
@@ -126,13 +103,13 @@ def claim_score(claim, context, idf):
             score -= 12
             reasons.append(f"entity NOT in context: {e}")
 
-    # 4. negation consistency
+    # a "not" that flips the meaning of the context
     if ("not" in claim.lower() or "no " in claim.lower()) and \
             "not" not in context.lower():
         score -= 10
         reasons.append("negation mismatch")
 
-    # 5. optional NLI stage
+    # optional nli check, still runs fully local
     if HAVE_NLI:
         try:
             r = _nli({"text": context, "text_pair": claim},
@@ -157,7 +134,6 @@ def verdict(score):
     return "hallucinated"
 
 
-# ------------------------------------------------------------- judge object  #
 class HallucinationJudge:
     def __init__(self):
         pass
@@ -187,9 +163,9 @@ class HallucinationJudge:
                     entity_misses.add(ev.split(": ", 1)[1].lower())
 
         is_hallucinated = (
-            (n_hall > 0 and avg < SUPPORTED_MIN)        # an unsupported claim
-            or avg < SUSPICIOUS_MIN                     # overall too faithful
-            or len(entity_misses) >= 2                  # ≥2 invented entities
+            (n_hall > 0 and avg < SUPPORTED_MIN)   # at least one unsupported claim
+            or avg < SUSPICIOUS_MIN                # overall too weak
+            or len(entity_misses) >= 2             # more than one invented entity
         )
         return {
             "answer": answer,
@@ -200,7 +176,7 @@ class HallucinationJudge:
         }
 
 
-# ----------------------------------------------------------------- demo data #
+# built-in demo: 5 answers, 3 of them contain made-up facts
 DEMO = [
     {"context": "The Eiffel Tower is a wrought-iron lattice tower on the Champ de "
                 "Mars in Paris, France. It is named after engineer Gustave Eiffel, "
@@ -233,7 +209,6 @@ DEMO = [
 ]
 
 
-# -------------------------------------------------------------------- report #
 def evaluate(dataset, judge, report_path=None):
     results, lines = [], []
     n_hall, total = 0, len(dataset)
@@ -276,9 +251,8 @@ def evaluate(dataset, judge, report_path=None):
     return results
 
 
-# ---------------------------------------------------------------------- main #
 def main():
-    # Windows consoles default to cp1252 and crash on emoji output.
+    # windows consoles default to cp1252 and crash on emoji output
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")

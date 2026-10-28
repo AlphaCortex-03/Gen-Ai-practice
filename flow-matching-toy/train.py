@@ -1,21 +1,3 @@
-# Toy Flow Matching — learning the vector field from noise -> circle distribution
-# Related to CERN GENIE / ML4SCI style generative-modeling exercises.
-#
-# Idea (Conditional Flow Matching, simple version):
-#   * We want a generative model that maps a simple distribution (standard Gaussian)
-#     to a complex one (points on a circle / ring).
-#   * Flow matching learns a velocity field v_theta(x, t) such that the ODE
-#         dx/dt = v_theta(x, t),  t in [0, 1]
-#     transports x(0) ~ Noise  ->  x(1) ~ Data.
-#   * With a linear (rectified) path x_t = (1-t)*x0 + t*x1, the ground-truth
-#     velocity of the conditional path is simply u = x1 - x0, so the training
-#     loss is a plain regression:
-#         L = E || v_theta(x_t, t) - (x1 - x0) ||^2
-#   * At sampling time we integrate the learned ODE with Euler steps.
-#
-# Run:  python train.py            (needs torch + matplotlib only)
-#       python train.py --steps 5000 --n-trajectories 40 --out out
-
 import argparse
 import math
 import os
@@ -27,9 +9,8 @@ import torch
 import torch.nn as nn
 
 
-# ----------------------------- data / noise -------------------------------- #
 def sample_circle(n, noise=0.05, radius_range=(0.8, 1.2), device="cpu"):
-    """Target 'data' distribution: points sampled on a noisy ring of radius 1."""
+    """noisy ring of radius 1 (that's our "data")"""
     theta = torch.rand(n, device=device) * 2 * math.pi
     r = torch.empty(n, device=device).uniform_(*radius_range)
     x = r * torch.cos(theta)
@@ -39,13 +20,12 @@ def sample_circle(n, noise=0.05, radius_range=(0.8, 1.2), device="cpu"):
 
 
 def sample_noise(n, device="cpu"):
-    """Source distribution: standard 2-D Gaussian."""
+    """standard 2d gaussian (that's our "noise")"""
     return torch.randn(n, 2, device=device)
 
 
-# ------------------------------ flow model --------------------------------- #
 class VectorField(nn.Module):
-    """Small MLP that predicts the velocity v(x, t) in R^2."""
+    """small mlp, (x, t) -> velocity vector"""
 
     def __init__(self, hidden=128, layers=3):
         super().__init__()
@@ -57,7 +37,7 @@ class VectorField(nn.Module):
         self.net = nn.Sequential(*net)
 
     def forward(self, x, t):
-        # t is broadcast-friendly: shape can be (N,), (N,1) or a scalar
+        # t may come in as a scalar, (N,) or (N,1)
         if t.dim() == 0:
             t = t.view(1, 1).expand(x.shape[0], 1)
         elif t.dim() == 1:
@@ -66,7 +46,7 @@ class VectorField(nn.Module):
 
 
 def path_sample(x0, x1, t):
-    """Linear interpolation path and its ground-truth velocity."""
+    """straight-line path x_t and its true velocity u = x1 - x0"""
     if t.dim() == 1:
         t = t.unsqueeze(1)
     x_t = (1 - t) * x0 + t * x1
@@ -76,7 +56,7 @@ def path_sample(x0, x1, t):
 
 @torch.no_grad()
 def euler_sample(model, n, steps=200, device="cpu"):
-    """Integrate dx/dt = v(x,t) from t=0 (noise) to t=1 (data)."""
+    """solve dx/dt = v(x, t) from t=0 (noise) to t=1 (data)"""
     x = sample_noise(n, device)
     dt = 1.0 / steps
     traj = [x.clone()]
@@ -88,7 +68,6 @@ def euler_sample(model, n, steps=200, device="cpu"):
     return x, torch.stack(traj)  # traj: (11, n, 2)
 
 
-# ------------------------------- training ---------------------------------- #
 def train(args, device):
     model = VectorField(args.hidden, args.layers).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
@@ -115,13 +94,12 @@ def train(args, device):
     return model, losses
 
 
-# ------------------------------- plotting ---------------------------------- #
 def plot_results(args, model, losses, device):
     os.makedirs(args.out, exist_ok=True)
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.8))
 
-    # (1) loss curve
+    # loss curve
     ax = axes[0]
     ax.plot(losses, color="tab:blue", lw=0.8)
     ax.set_title("Flow-matching training loss")
@@ -129,7 +107,7 @@ def plot_results(args, model, losses, device):
     ax.set_ylabel("MSE")
     ax.grid(alpha=0.3)
 
-    # (2) data vs generated samples
+    # data vs generated samples
     ax = axes[1]
     data = sample_circle(args.n_samples, noise=0.0, radius_range=(1, 1), device=device)
     with torch.no_grad():
@@ -145,7 +123,7 @@ def plot_results(args, model, losses, device):
     ax.legend(loc="upper right", fontsize=8)
     ax.set_xlim(-2, 2); ax.set_ylim(-2, 2); ax.set_aspect("equal")
 
-    # (3) trajectories from a few noise points (curves made by the learned field)
+    # ode trajectories from a few noise points
     ax = axes[2]
     d = traj.cpu().numpy()
     k = min(args.n_trajectories, d.shape[1])
@@ -167,7 +145,7 @@ def plot_results(args, model, losses, device):
     fig.savefig(out_png, dpi=140)
     print(f"saved plot -> {out_png}")
 
-    # quiver plot of the learned vector field at t = 0.5
+    # arrows = learned field at the midpoint t=0.5
     grid = torch.stack(torch.meshgrid(
         torch.linspace(-2, 2, 21, device=device),
         torch.linspace(-2, 2, 21, device=device), indexing="xy"), dim=-1
@@ -188,7 +166,6 @@ def plot_results(args, model, losses, device):
     print(f"saved plot -> {quiver_png}")
 
 
-# --------------------------------- main ------------------------------------ #
 def parse_args():
     p = argparse.ArgumentParser(description="Toy Flow Matching (noise -> circle)")
     p.add_argument("--steps", type=int, default=4000)

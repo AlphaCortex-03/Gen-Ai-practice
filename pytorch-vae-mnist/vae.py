@@ -1,18 +1,5 @@
-# pytorch-vae-mnist
-# A clean Variational Autoencoder on MNIST — the "hello world" of generative models.
-#
-#   * Encoder: 784 -> 256 -> (mu, logvar)   [latent_dim = 2 by default]
-#   * Reparameterization trick:  z = mu + exp(0.5*logvar) * eps
-#   * Decoder:  latent_dim -> 256 -> 784 (sigmoid)
-#   * Loss: binary cross-entropy reconstruction + KL divergence to N(0, I)
-#
-# Trains in ~1 minute on CPU. Saves two showcase images:
-#   out/vae_reconstructions.png   (originals vs. reconstructions)
-#   out/vae_latent_space.png      (2-D latent scatter coloured by digit, latent_dim=2)
-#
-# Run:  python vae.py
-#       python vae.py --epochs 10 --latent-dim 8
-
+# simple VAE on MNIST, trains in about a minute on cpu and saves
+# reconstruction + latent space images to out/
 import argparse
 import os
 
@@ -23,7 +10,6 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 
-# --------------------------------- model ----------------------------------- #
 class VAE(nn.Module):
     def __init__(self, latent_dim=2, hidden=256):
         super().__init__()
@@ -49,13 +35,13 @@ class VAE(nn.Module):
 
 
 def vae_loss(recon, x, mu, logvar):
+    # elbo = reconstruction (bce) + KL(q(z|x) || N(0, I))
     recon = recon.view(recon.size(0), -1)
     bce = F.binary_cross_entropy(recon, x, reduction="sum") / x.size(0)
     kld = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
     return bce, kld, bce + kld
 
 
-# --------------------------------- training -------------------------------- #
 def train(args, device):
     tfm = transforms.ToTensor()
     train_set = datasets.MNIST("data", train=True, download=True, transform=tfm)
@@ -77,7 +63,7 @@ def train(args, device):
             loss.backward()
             opt.step()
 
-        # quick validation
+        # eval pass on the test set
         model.eval()
         vl, n = 0.0, 0
         with torch.no_grad():
@@ -95,7 +81,6 @@ def train(args, device):
     return model, test_set
 
 
-# --------------------------------- plotting -------------------------------- #
 @torch.no_grad()
 def plot(model, test_set, device, out, latent_dim):
     import matplotlib
@@ -128,7 +113,7 @@ def plot(model, test_set, device, out, latent_dim):
     fig.savefig(p1, dpi=140)
     print(f"saved plot -> {p1}")
 
-    # latent space scatter (only meaningful when latent_dim == 2)
+    # latent scatter only makes sense when latent_dim is 2
     if latent_dim != 2:
         print("latent_dim != 2 -> skipping 2-D latent scatter plot")
         return
@@ -152,7 +137,6 @@ def plot(model, test_set, device, out, latent_dim):
     print(f"saved plot -> {p2}")
 
 
-# ----------------------------------- main ---------------------------------- #
 def parse_args():
     p = argparse.ArgumentParser(description="PyTorch VAE on MNIST")
     p.add_argument("--epochs", type=int, default=5)

@@ -1,0 +1,39 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run Demo",
+      "type": "shell",
+      "command": "python",
+      "args": ["scripts/run_demo.py"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Train CFM",
+      "type": "shell",
+      "command": "python",
+      "args": ["-m", "src.train", "--steps", "2000"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Tests",
+      "type": "shell",
+      "command": "python",
+      "args": ["-m", "pytest", "tests", "-v", "-W", "ignore"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Sample Showers",
+      "type": "shell",
+      "command": "python",
+      "args": ["-m", "src.sample", "--n", "4"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}

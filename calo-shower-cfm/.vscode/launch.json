@@ -1,0 +1,53 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Calo-CFM: Run Demo (end-to-end)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_demo.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    },
+    {
+      "name": "Calo-CFM: Train (2000 steps)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "src.train",
+      "args": ["--steps", "2000", "--out", "outputs"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    },
+    {
+      "name": "Calo-CFM: Train (quick, 300 steps)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "src.train",
+      "args": ["--steps", "300", "--out", "outputs"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    },
+    {
+      "name": "Calo-CFM: Sample + Plot",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "src.sample",
+      "args": ["--n", "4", "--steps", "25"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    },
+    {
+      "name": "Calo-CFM: All Tests (pytest)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["tests", "-v", "-W", "ignore"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
